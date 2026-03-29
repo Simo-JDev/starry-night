@@ -12,9 +12,10 @@ def load_milky_way():
     polygons = []
     for feature in geojson["features"]:
         level = int(feature["id"].lstrip("abcdefghijklmnopqrstuvwxyz"))
-        coords = feature["geometry"]["coordinates"][0]
-        vertices = [(c[0], c[1]) for c in coords]
-        polygons.append({"level": level, "vertices": vertices})
+        for poly in feature["geometry"]["coordinates"]:
+            coords = poly[0]  # outer ring of each polygon
+            vertices = [(c[0], c[1]) for c in coords]
+            polygons.append({"level": level, "vertices": vertices})
     return polygons
 
 

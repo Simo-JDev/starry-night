@@ -16,6 +16,8 @@ def main():
     parser.add_argument("--minute", type=int, required=True)
     parser.add_argument("--mag", type=float, default=6.5)
     parser.add_argument("--output", type=str, default="skymap.png")
+    parser.add_argument("--title", type=str, default="")
+    parser.add_argument("--subtitle", type=str, default="")
     args = parser.parse_args()
 
     t = (args.lat, args.lon, args.year, args.month, args.day, args.hour, args.minute)
@@ -39,7 +41,8 @@ def main():
     segments_projected = project_constellations(segments, *t)
 
     print(f"Rendering to {args.output}...")
-    render_map(stars_df, mw_projected, segments_projected, output_file=args.output)
+    render_map(stars_df, mw_projected, segments_projected, output_file=args.output,
+               title=args.title, subtitle=args.subtitle)
 
     print("Done.")
 
