@@ -12,7 +12,7 @@ def _to_polar(alt_deg, az_deg):
     return theta, r
 
 
-MW_ALPHA = {1: 0.08, 2: 0.14, 3: 0.20, 4: 0.28, 5: 0.40}
+MW_ALPHA = {1: 0.08, 2: 0.12, 3: 0.16, 4: 0.22, 5: 0.30}
 
 
 def render_map(stars_df, milky_way, constellation_segments, output_file="skymap.png", title="", subtitle=""):
@@ -25,8 +25,12 @@ def render_map(stars_df, milky_way, constellation_segments, output_file="skymap.
 
     # --- Milky Way ---
     for polygon in milky_way:
-        thetas = [np.radians(az) for _, az in polygon["vertices"]]
-        rs = [1.0 - (alt / 90.0) for alt, _ in polygon["vertices"]]
+        verts = polygon["vertices"]
+        above = [(alt, az) for alt, az in verts if alt > 0]
+        if len(above) / len(verts) < 0.30:
+            continue
+        thetas = [np.radians(az) for _, az in above]
+        rs = [1.0 - (alt / 90.0) for alt, _ in above]
         ax.fill(thetas, rs, color="#ffffff",
                 alpha=MW_ALPHA.get(polygon["level"], 0.06),
                 linewidth=0, zorder=1)

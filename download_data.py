@@ -31,7 +31,7 @@ if os.path.exists(mw_path):
 else:
     print("Downloading mw.json...")
     urllib.request.urlretrieve(
-        "https://raw.githubusercontent.com/ofrohn/d3-celestial/master/data/mw.json",
+        "https://raw.githubusercontent.com/sergio-dr/mw_geojson/main/mw.json",
         mw_path,
     )
 
