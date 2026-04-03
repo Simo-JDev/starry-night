@@ -56,6 +56,8 @@ MW_MIN_VISIBLE_RATIO = 0.30
 MW_FILL_COLOR = "#ffffff"
 CONSTELLATION_LINEWIDTH = 0.5
 CONSTELLATION_ALPHA = 0.9
+CONSTELLATION_LABEL_FONT_SIZE = 6
+CONSTELLATION_LABEL_ALPHA = 0.8
 STAR_SIZE_MAG_REF = 7.5
 STAR_SIZE_SCALE = 0.2
 STAR_SIZE_MIN = 0.01
@@ -194,6 +196,8 @@ def render_map(
     title="",
     subtitle="",
     ring_only=False,
+    show_names=False,
+    constellation_labels=None,
 ):
     fig = plt.figure(figsize=FIG_SIZE, dpi=FIG_DPI, facecolor=FIG_BG_COLOR)
     ring_limit = RING_LIMIT
@@ -235,6 +239,22 @@ def render_map(
             ax.plot([t1, t2], [r1, r2],
                     color=WHITE, linewidth=CONSTELLATION_LINEWIDTH, alpha=CONSTELLATION_ALPHA,
                     solid_capstyle="round")
+
+        # --- Constellation abbreviations ---
+        if show_names and constellation_labels:
+            for item in constellation_labels:
+                t_lab, r_lab = _to_polar(item["altitude_deg"], item["azimuth_deg"])
+                ax.text(
+                    t_lab,
+                    r_lab,
+                    item["id"],
+                    color=WHITE,
+                    fontsize=CONSTELLATION_LABEL_FONT_SIZE,
+                    alpha=CONSTELLATION_LABEL_ALPHA,
+                    ha="center",
+                    va="center",
+                    zorder=2,
+                )
 
         # --- Stars ---
         above = stars_df[stars_df["altitude_deg"] > 0]

@@ -23,6 +23,8 @@ def main():
     parser.add_argument("--subtitle", type=str, default="")
     parser.add_argument("--ring-only", action="store_true",
                         help="Render only the compass ring and labels (fast preview mode).")
+    parser.add_argument("--show-names", action="store_true",
+                        help="Show constellation abbreviations (e.g. Ori, And).")
     args = parser.parse_args()
 
     t = (args.lat, args.lon, args.year, args.month, args.day, args.hour, args.minute)
@@ -30,6 +32,7 @@ def main():
     stars_df = None
     mw_projected = None
     segments_projected = None
+    constellation_labels = None
 
     if not args.ring_only:
         load = Loader(_DATA_DIR)
@@ -52,16 +55,32 @@ def main():
         mw_projected = project_milky_way(mw_polygons, *t, earth=earth, t=t_skyfield)
 
         print("Loading constellation lines...")
-        segments = load_constellation_lines()
+        segments, label_points = load_constellation_lines()
 
         print("Projecting constellations...")
-        segments_projected = project_constellations(segments, *t, earth=earth, t=t_skyfield)
+        segments_projected, constellation_labels = project_constellations(
+            segments,
+            *t,
+            earth=earth,
+            t=t_skyfield,
+            show_names=args.show_names,
+            label_points=label_points,
+        )
     else:
         print("Ring-only preview mode: skipping sky calculations.")
 
     print(f"Rendering to {args.output}...")
-    render_map(stars_df, mw_projected, segments_projected, output_file=args.output,
-               title=args.title, subtitle=args.subtitle, ring_only=args.ring_only)
+    render_map(
+        stars_df,
+        mw_projected,
+        segments_projected,
+        output_file=args.output,
+        title=args.title,
+        subtitle=args.subtitle,
+        ring_only=args.ring_only,
+        show_names=args.show_names,
+        constellation_labels=constellation_labels,
+    )
 
     print("Done.")
 
