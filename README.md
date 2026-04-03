@@ -48,6 +48,8 @@ The download step fetches:
 
 The CLI takes explicit latitude, longitude, date, and time values.
 
+All date and time inputs are interpreted in UTC.
+
 Example:
 
 ```bash
@@ -84,6 +86,7 @@ The app currently includes:
 - a confirmed place selection from matching results
 - resolved latitude and longitude display
 - date and time inputs
+- UTC-based time interpretation
 - magnitude limit input
 - title and subtitle inputs
 - background color picker

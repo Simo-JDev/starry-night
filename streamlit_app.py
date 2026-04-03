@@ -126,6 +126,7 @@ with controls:
     time_cols = st.columns(2)
     hour = time_cols[0].number_input("Hour", min_value=0, max_value=23, value=22, step=1)
     minute = time_cols[1].number_input("Minute", min_value=0, max_value=59, value=0, step=1)
+    st.caption("Time inputs are interpreted in UTC.")
 
     mag = st.number_input("Magnitude Limit", min_value=-5.0, max_value=20.0, value=6.5, step=0.1, format="%.1f")
     output = st.text_input("Output File", value="skymap.png")
