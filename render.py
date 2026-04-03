@@ -11,8 +11,8 @@ from pathlib import Path
 FIG_SIZE = (10, 10)
 FIG_DPI = 300
 FIG_BG_COLOR = "#3d4460"
-MAP_BG_COLOR = "#2e3552"
-MAP_POS = [0.21, 0.21, 0.58, 0.58]
+MAP_BG_COLOR = "#3d4460"
+MAP_POS = [0.2187, 0.2187, 0.5626, 0.5626]
 RING_LIMIT = 1.5
 MAP_RADIUS = 1.0
 
@@ -22,11 +22,11 @@ WHITE = "white"
 # --- Ring geometry / style ---
 RING_HORIZON_RADIUS = 1.0
 RING_HORIZON_LINEWIDTH = 5
-RING_GUIDE_RADIUS = 1.2
+RING_GUIDE_RADIUS = 1.21
 RING_GUIDE_LINEWIDTH = 0.6
 RING_TICK_RADIUS_MINOR = 1.05
 RING_TICK_RADIUS_MEDIUM = 1.05
-RING_TICK_RADIUS_MAJOR = 1.08
+RING_TICK_RADIUS_MAJOR = 1.1
 RING_TICK_LINEWIDTH_MINOR = 0.4
 RING_TICK_LINEWIDTH_MEDIUM = 0.6
 RING_TICK_LINEWIDTH_MAJOR = 0.9
@@ -37,11 +37,12 @@ DEGREE_LABEL_STEP = 15
 DEGREE_LABEL_RADIUS = 1.11
 DEGREE_LABEL_FONT_SIZE = 9
 DEGREE_LABEL_FLIP_FROM = 195
-CARDINAL_LABEL_RADIUS = 1.2
-CARDINAL_FONT_SIZE = 9
-INTERCARDINAL_FONT_SIZE = 9
-CARDINAL_LABEL_BBOX_PAD = 0.3
+CARDINAL_LABEL_RADIUS = 1.21
+CARDINAL_FONT_SIZE = 10
+INTERCARDINAL_FONT_SIZE = 10
+CARDINAL_LABEL_BBOX_PAD = 0.25
 CARDINAL_LABEL_BBOX_COLOR = FIG_BG_COLOR
+CARDINAL_LETTER_SPACING = "\u200A"  # hair space for subtle tracking
 CARDINALS = {0: "North", 90: "East", 180: "South", 270: "West"}
 INTERCARDINALS = {45: "NE", 135: "SE", 225: "SW", 315: "NW"}
 UPSIDE_DOWN_CARDINAL_AZ = {225, 270, 315}
@@ -66,7 +67,7 @@ TITLE_POS = (0.5, 0.92)
 TITLE_FONT_SIZE = 20
 NORMAL_FONT_PATH = Path(__file__).resolve().parent / "assets" / "fonts" / "Lato-Regular.ttf"
 TITLE_FONT_PATH = Path(__file__).resolve().parent / "assets" / "fonts" / "Lato-Bold.ttf"
-SUBTITLE_POS = (0.5, 0.06)
+SUBTITLE_POS = (0.5, 0.079)
 SUBTITLE_FONT_SIZE = 9
 SAVE_BBOX_PAD_INCHES = 0.45
 
@@ -88,6 +89,9 @@ def draw_ring(ax_ring):
         # Counterclockwise from North: N at top, E at left.
         return np.radians(-az_deg)
 
+    def _tracked(text):
+        return CARDINAL_LETTER_SPACING.join(list(text))
+
     # Thick horizon circle
     ax_ring.add_patch(
         mpatches.Circle(
@@ -106,7 +110,7 @@ def draw_ring(ax_ring):
             (0, 0),
             0.985,
             fill=False,
-            edgecolor="#2e3552",
+            edgecolor="#3d4460",
             linewidth=4,
             zorder=20,
         )
@@ -158,11 +162,8 @@ def draw_ring(ax_ring):
         if az >= DEGREE_LABEL_FLIP_FROM:
             rotation = (rotation + 180) % 360
         label = "360" if az == 0 else str(az)
-        degree_text_kwargs = {}
-        if NORMAL_FONT_PROPS is not None:
-            degree_text_kwargs["fontproperties"] = NORMAL_FONT_PROPS
         ax_ring.text(x, y, label, fontsize=DEGREE_LABEL_FONT_SIZE, color=WHITE,
-                     ha="center", va="center", rotation=rotation, zorder=7, **degree_text_kwargs)
+                     ha="center", va="center", rotation=rotation, zorder=7)
 
     # Cardinal and intercardinal labels.
     for az, label in {**CARDINALS, **INTERCARDINALS}.items():
@@ -173,18 +174,15 @@ def draw_ring(ax_ring):
         if az in UPSIDE_DOWN_CARDINAL_AZ:
             rotation = (rotation + 180) % 360
         fontsize = CARDINAL_FONT_SIZE if az in CARDINALS else INTERCARDINAL_FONT_SIZE
-        cardinal_text_kwargs = {}
-        if NORMAL_FONT_PROPS is not None:
-            cardinal_text_kwargs["fontproperties"] = NORMAL_FONT_PROPS
+        display_label = _tracked(label) if az in CARDINALS else label
         # Knock out the guide ring behind labels so it doesn't run through text.
-        ax_ring.text(x, y, label, fontsize=fontsize, color=WHITE,
+        ax_ring.text(x, y, display_label, fontsize=fontsize, color=WHITE,
                      ha="center", va="center", rotation=rotation, zorder=7,
                      bbox=dict(
                          boxstyle=f"round,pad={CARDINAL_LABEL_BBOX_PAD}",
                          facecolor=CARDINAL_LABEL_BBOX_COLOR,
                          edgecolor="none",
-                     ),
-                     **cardinal_text_kwargs)
+                     ))
 
 
 def render_map(
