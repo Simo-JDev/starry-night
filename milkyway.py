@@ -36,18 +36,4 @@ def project_milky_way(polygons, lat, lon, year, month, day, hour, minute):
             alt, az, _ = earth.at(t).observe(star).apparent().altaz()
             projected.append((alt.degrees, az.degrees))
         result.append({"level": polygon["level"], "vertices": projected})
-    drawn = 0
-    skipped = 0
-    for polygon in result:
-        total = len(polygon["vertices"])
-        above = sum(1 for alt, _ in polygon["vertices"] if alt > 0)
-        will_draw = above / total >= 0.30
-        status = "DRAW" if will_draw else "SKIP"
-        if will_draw:
-            drawn += 1
-        else:
-            skipped += 1
-        print(f"  level={polygon['level']}  verts={total}  above_horizon={above}  {status}")
-    print(f"Total: {drawn} drawn, {skipped} skipped")
-
     return result

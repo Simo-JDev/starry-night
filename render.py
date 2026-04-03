@@ -4,10 +4,78 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.path as mpath
+from matplotlib.font_manager import FontProperties
+from pathlib import Path
+
+# --- Figure / layout constants ---
+FIG_SIZE = (10, 10)
+FIG_DPI = 300
+FIG_BG_COLOR = "#3d4460"
+MAP_BG_COLOR = "#2e3552"
+MAP_POS = [0.21, 0.21, 0.58, 0.58]
+RING_LIMIT = 1.5
+MAP_RADIUS = 1.0
+
+# --- Colors ---
+WHITE = "white"
+
+# --- Ring geometry / style ---
+RING_HORIZON_RADIUS = 1.0
+RING_HORIZON_LINEWIDTH = 5
+RING_GUIDE_RADIUS = 1.2
+RING_GUIDE_LINEWIDTH = 0.6
+RING_TICK_RADIUS_MINOR = 1.05
+RING_TICK_RADIUS_MEDIUM = 1.05
+RING_TICK_RADIUS_MAJOR = 1.08
+RING_TICK_LINEWIDTH_MINOR = 0.4
+RING_TICK_LINEWIDTH_MEDIUM = 0.6
+RING_TICK_LINEWIDTH_MAJOR = 0.9
+RING_MID_TICK_RADIUS = 1.032
+
+# --- Ring labels ---
+DEGREE_LABEL_STEP = 15
+DEGREE_LABEL_RADIUS = 1.11
+DEGREE_LABEL_FONT_SIZE = 9
+DEGREE_LABEL_FLIP_FROM = 195
+CARDINAL_LABEL_RADIUS = 1.2
+CARDINAL_FONT_SIZE = 9
+INTERCARDINAL_FONT_SIZE = 9
+CARDINAL_LABEL_BBOX_PAD = 0.3
+CARDINAL_LABEL_BBOX_COLOR = FIG_BG_COLOR
+CARDINALS = {0: "North", 90: "East", 180: "South", 270: "West"}
+INTERCARDINALS = {45: "NE", 135: "SE", 225: "SW", 315: "NW"}
+UPSIDE_DOWN_CARDINAL_AZ = {225, 270, 315}
+
+# --- Sky rendering ---
+ALTITUDE_MAX_DEG = 90.0
+HORIZON_ALTITUDE_DEG = 0
+MAP_CONTENT_MAX_RADIUS = 0.98
+MW_MIN_VISIBLE_RATIO = 0.30
+MW_FILL_COLOR = "#ffffff"
+CONSTELLATION_LINEWIDTH = 1.2
+CONSTELLATION_ALPHA = 0.9
+STAR_SIZE_MAG_REF = 6.5
+STAR_SIZE_SCALE = 1.5
+STAR_SIZE_MIN = 0.5
+
+# --- Border / text ---
+FIG_BORDER_POS = (0.03, 0.03)
+FIG_BORDER_SIZE = (0.94, 0.94)
+FIG_BORDER_LINEWIDTH = 5
+TITLE_POS = (0.5, 0.92)
+TITLE_FONT_SIZE = 20
+NORMAL_FONT_PATH = Path(__file__).resolve().parent / "assets" / "fonts" / "Lato-Regular.ttf"
+TITLE_FONT_PATH = Path(__file__).resolve().parent / "assets" / "fonts" / "Lato-Bold.ttf"
+SUBTITLE_POS = (0.5, 0.06)
+SUBTITLE_FONT_SIZE = 9
+SAVE_BBOX_PAD_INCHES = 0.45
+
+NORMAL_FONT_PROPS = FontProperties(fname=str(NORMAL_FONT_PATH)) if NORMAL_FONT_PATH.exists() else None
+TITLE_FONT_PROPS = FontProperties(fname=str(TITLE_FONT_PATH)) if TITLE_FONT_PATH.exists() else None
 
 
 def _to_polar(alt_deg, az_deg):
-    r = 1.0 - alt_deg / 90.0
+    r = MAP_CONTENT_MAX_RADIUS * (1.0 - alt_deg / ALTITUDE_MAX_DEG)
     theta = np.radians(az_deg)
     return theta, r
 
@@ -15,111 +83,215 @@ def _to_polar(alt_deg, az_deg):
 MW_ALPHA = {1: 0.08, 2: 0.12, 3: 0.16, 4: 0.22, 5: 0.30}
 
 
-def render_map(stars_df, milky_way, constellation_segments, output_file="skymap.png", title="", subtitle=""):
-    fig = plt.figure(figsize=(10, 10), dpi=300, facecolor="#3d4460")
-    ax = fig.add_axes([0.20, 0.10, 0.60, 0.60], projection="polar", facecolor="#2e3552")
+def draw_ring(ax_ring):
+    def _ring_rad(az_deg):
+        # Counterclockwise from North: N at top, E at left.
+        return np.radians(-az_deg)
 
-    ax.set_theta_zero_location("N")
-    ax.set_theta_direction(1)
-    ax.axis("off")
+    # Thick horizon circle
+    ax_ring.add_patch(
+        mpatches.Circle(
+            (0, 0),
+            RING_HORIZON_RADIUS,
+            fill=False,
+            edgecolor=WHITE,
+            linewidth=RING_HORIZON_LINEWIDTH,
+            zorder=5,
+        )
+    )
 
-    # --- Milky Way ---
-    for polygon in milky_way:
-        verts = polygon["vertices"]
-        above = [(alt, az) for alt, az in verts if alt > 0]
-        if len(above) / len(verts) < 0.30:
-            continue
-        thetas = [np.radians(az) for _, az in above]
-        rs = [1.0 - (alt / 90.0) for alt, _ in above]
-        ax.fill(thetas, rs, color="#ffffff",
-                alpha=MW_ALPHA.get(polygon["level"], 0.06),
-                linewidth=0, zorder=1)
+    # Thin guide ring just before the horizon.
+    ax_ring.add_patch(
+        mpatches.Circle(
+            (0, 0),
+            0.985,
+            fill=False,
+            edgecolor="#2e3552",
+            linewidth=4,
+            zorder=20,
+        )
+    )
 
-    ax.set_ylim(0, 1.0)
+    # Thin guide ring just outside the horizon (drawn under ticks and labels).
+    ax_ring.add_patch(
+        mpatches.Circle(
+            (0, 0),
+            RING_MID_TICK_RADIUS,
+            fill=False,
+            edgecolor=WHITE,
+            linewidth=RING_GUIDE_LINEWIDTH,
+            zorder=6,
+        )
+    )
 
-    # --- Constellation lines ---
-    for (alt1, az1), (alt2, az2) in constellation_segments:
-        t1, r1 = _to_polar(alt1, az1)
-        t2, r2 = _to_polar(alt2, az2)
-        ax.plot([t1, t2], [r1, r2],
-                color="white", linewidth=1.2, alpha=0.9,
-                solid_capstyle="round")
+    # Thin guide ring through cardinal/intercardinal label radius (drawn under text).
+    ax_ring.add_patch(
+        mpatches.Circle(
+            (0, 0),
+            RING_GUIDE_RADIUS,
+            fill=False,
+            edgecolor=WHITE,
+            linewidth=RING_GUIDE_LINEWIDTH,
+            zorder=6,
+        )
+    )
 
-    # --- Stars ---
-    above = stars_df[stars_df["altitude_deg"] > 0]
-    thetas = np.radians(above["azimuth_deg"].values)
-    rs = 1.0 - above["altitude_deg"].values / 90.0
-    sizes = np.clip((6.5 - above["magnitude"].values) ** 2 * 1.5, 0.5, None)
-
-    ax.scatter(thetas, rs, s=sizes, color="white", linewidths=0, zorder=3)
-
-    # --- Tick ring: filled annulus between horizon (r=1.0) and outer edge (r=1.18) ---
-    ring_theta = np.linspace(0, 2 * np.pi, 720)
-    ax.fill_between(ring_theta, 1.0, 1.18, color="#4a5070", zorder=3)
-
-    # Inner horizon circle
-    ax.plot(ring_theta, np.ones(720), color="white", linewidth=1.5, zorder=4)
-
-    # Ticks inside the band
+    # Ticks for every degree
     for az in range(360):
-        theta = np.radians(az)
+        rad = _ring_rad(az)
         if az % 15 == 0:
-            ax.plot([theta, theta], [1.0, 1.10], color="white", linewidth=0.8, zorder=5)
+            r_out, lw = RING_TICK_RADIUS_MAJOR, RING_TICK_LINEWIDTH_MAJOR
         elif az % 5 == 0:
-            ax.plot([theta, theta], [1.0, 1.07], color="white", linewidth=0.6, zorder=5)
+            r_out, lw = RING_TICK_RADIUS_MEDIUM, RING_TICK_LINEWIDTH_MEDIUM
         else:
-            ax.plot([theta, theta], [1.0, 1.04], color="white", linewidth=0.4, zorder=5)
+            r_out, lw = RING_TICK_RADIUS_MINOR, RING_TICK_LINEWIDTH_MINOR
+        x1, y1 = np.sin(rad), np.cos(rad)
+        x2, y2 = r_out * np.sin(rad), r_out * np.cos(rad)
+        ax_ring.plot([x1, x2], [y1, y2], color=WHITE, linewidth=lw, zorder=6)
 
-    # Degree labels at every 15°, inside the band at r=1.13
-    for az in range(0, 360, 15):
-        theta = np.radians(az)
-        rotation = az - 90 if az <= 180 else az + 90
-        ax.text(theta, 1.13, f"{az}°",
-                ha="center", va="center",
-                fontsize=6, color="white",
-                rotation=rotation, rotation_mode="anchor",
-                zorder=6)
+    # Degree labels at fixed step.
+    for az in range(0, 360, DEGREE_LABEL_STEP):
+        rad = _ring_rad(az)
+        x = DEGREE_LABEL_RADIUS * np.sin(rad)
+        y = DEGREE_LABEL_RADIUS * np.cos(rad)
+        rotation = az if az <= 180 else az - 180
+        if az >= DEGREE_LABEL_FLIP_FROM:
+            rotation = (rotation + 180) % 360
+        label = "360" if az == 0 else str(az)
+        degree_text_kwargs = {}
+        if NORMAL_FONT_PROPS is not None:
+            degree_text_kwargs["fontproperties"] = NORMAL_FONT_PROPS
+        ax_ring.text(x, y, label, fontsize=DEGREE_LABEL_FONT_SIZE, color=WHITE,
+                     ha="center", va="center", rotation=rotation, zorder=7, **degree_text_kwargs)
 
-    # Outer boundary circle at r=1.18
-    ax.plot(ring_theta, np.full(720, 1.18), color="white", linewidth=1, zorder=4)
+    # Cardinal and intercardinal labels.
+    for az, label in {**CARDINALS, **INTERCARDINALS}.items():
+        rad = _ring_rad(az)
+        x = CARDINAL_LABEL_RADIUS * np.sin(rad)
+        y = CARDINAL_LABEL_RADIUS * np.cos(rad)
+        rotation = az if az <= 180 else az - 180
+        if az in UPSIDE_DOWN_CARDINAL_AZ:
+            rotation = (rotation + 180) % 360
+        fontsize = CARDINAL_FONT_SIZE if az in CARDINALS else INTERCARDINAL_FONT_SIZE
+        cardinal_text_kwargs = {}
+        if NORMAL_FONT_PROPS is not None:
+            cardinal_text_kwargs["fontproperties"] = NORMAL_FONT_PROPS
+        # Knock out the guide ring behind labels so it doesn't run through text.
+        ax_ring.text(x, y, label, fontsize=fontsize, color=WHITE,
+                     ha="center", va="center", rotation=rotation, zorder=7,
+                     bbox=dict(
+                         boxstyle=f"round,pad={CARDINAL_LABEL_BBOX_PAD}",
+                         facecolor=CARDINAL_LABEL_BBOX_COLOR,
+                         edgecolor="none",
+                     ),
+                     **cardinal_text_kwargs)
 
-    # Cardinal and intercardinal labels just outside r=1.18
-    cardinals = {0: "North", 90: "East", 180: "South", 270: "West"}
-    intercardinals = {45: "NE", 135: "SE", 225: "SW", 315: "NW"}
-    for az, label in cardinals.items():
-        theta = np.radians(az)
-        rotation = az - 90 if az <= 180 else az + 90
-        ax.text(theta, 1.26, label,
-                ha="center", va="center",
-                fontsize=8, color="white",
-                rotation=rotation, rotation_mode="anchor",
-                zorder=6)
-    for az, label in intercardinals.items():
-        theta = np.radians(az)
-        rotation = az - 90 if az <= 180 else az + 90
-        ax.text(theta, 1.26, label,
-                ha="center", va="center",
-                fontsize=7, color="white",
-                rotation=rotation, rotation_mode="anchor",
-                zorder=6)
+
+def render_map(
+    stars_df,
+    milky_way,
+    constellation_segments,
+    output_file="skymap.png",
+    title="",
+    subtitle="",
+    ring_only=False,
+):
+    fig = plt.figure(figsize=FIG_SIZE, dpi=FIG_DPI, facecolor=FIG_BG_COLOR)
+    ring_limit = RING_LIMIT
+    map_radius = MAP_RADIUS
+    ring_scale = ring_limit / map_radius
+
+    # Keep map and ring centered, but give the ring a larger axes box so it wraps the map.
+    map_pos = MAP_POS
+    cx = map_pos[0] + map_pos[2] / 2
+    cy = map_pos[1] + map_pos[3] / 2
+    ring_size = map_pos[2] * ring_scale
+    ring_pos = [cx - ring_size / 2, cy - ring_size / 2, ring_size, ring_size]
+
+    if not ring_only:
+        ax = fig.add_axes(map_pos, projection="polar", facecolor=MAP_BG_COLOR)
+
+        ax.set_theta_zero_location("N")
+        ax.set_theta_direction(1)
+        ax.axis("off")
+
+        # --- Milky Way ---
+        for polygon in milky_way:
+            verts = polygon["vertices"]
+            above = [(alt, az) for alt, az in verts if alt > HORIZON_ALTITUDE_DEG]
+            if len(above) / len(verts) < MW_MIN_VISIBLE_RATIO:
+                continue
+            thetas = [np.radians(az) for _, az in above]
+            rs = [MAP_CONTENT_MAX_RADIUS * (1.0 - (alt / ALTITUDE_MAX_DEG)) for alt, _ in above]
+            ax.fill(thetas, rs, color=MW_FILL_COLOR,
+                    alpha=MW_ALPHA.get(polygon["level"], 0.06),
+                    linewidth=0, zorder=1)
+
+        ax.set_ylim(0, 1.0)
+
+        # --- Constellation lines ---
+        for (alt1, az1), (alt2, az2) in constellation_segments:
+            t1, r1 = _to_polar(alt1, az1)
+            t2, r2 = _to_polar(alt2, az2)
+            ax.plot([t1, t2], [r1, r2],
+                    color=WHITE, linewidth=CONSTELLATION_LINEWIDTH, alpha=CONSTELLATION_ALPHA,
+                    solid_capstyle="round")
+
+        # --- Stars ---
+        above = stars_df[stars_df["altitude_deg"] > 0]
+        thetas = np.radians(above["azimuth_deg"].values)
+        rs = MAP_CONTENT_MAX_RADIUS * (1.0 - above["altitude_deg"].values / ALTITUDE_MAX_DEG)
+        sizes = np.clip(
+            (STAR_SIZE_MAG_REF - above["magnitude"].values) ** 2 * STAR_SIZE_SCALE,
+            STAR_SIZE_MIN,
+            None,
+        )
+
+        ax.scatter(thetas, rs, s=sizes, color=WHITE, linewidths=0, zorder=3)
+
+    # --- Compass ring (drawn last so it stays above map layers) ---
+    ax_ring = fig.add_axes(ring_pos, frameon=False)
+    ax_ring.set_zorder(20)
+    ax_ring.set_xlim(-ring_limit, ring_limit)
+    ax_ring.set_ylim(-ring_limit, ring_limit)
+    ax_ring.set_aspect("equal")
+    ax_ring.axis("off")
+    ax_ring.patch.set_visible(False)
+    draw_ring(ax_ring)
 
     # --- Figure border ---
     fig.patches.append(mpatches.Rectangle(
-        (0.02, 0.02), 0.96, 0.96,
+        FIG_BORDER_POS, *FIG_BORDER_SIZE,
         transform=fig.transFigure,
-        fill=False, edgecolor="white", linewidth=1, zorder=10,
+        fill=False, edgecolor=WHITE, linewidth=FIG_BORDER_LINEWIDTH, zorder=10,
     ))
 
     # --- Title and subtitle ---
     if title:
-        fig.text(0.5, 0.88, title,
+        title_text_kwargs = {}
+        if TITLE_FONT_PROPS is not None:
+            title_text_kwargs["fontproperties"] = TITLE_FONT_PROPS
+        else:
+            title_text_kwargs["fontweight"] = "bold"
+        fig.text(*TITLE_POS, title,
                  ha="center", va="top",
-                 fontsize=28, color="white", fontweight="bold")
+                 fontsize=TITLE_FONT_SIZE, color=WHITE,
+                 **title_text_kwargs)
     if subtitle:
+        subtitle_text_kwargs = {}
+        if NORMAL_FONT_PROPS is not None:
+            subtitle_text_kwargs["fontproperties"] = NORMAL_FONT_PROPS
         subtitle = subtitle.replace('\\n', '\n')
-        fig.text(0.5, 0.03, subtitle,
+        fig.text(*SUBTITLE_POS, subtitle,
                  ha="center", va="bottom",
-                 fontsize=10, color="white", multialignment="center")
+                 fontsize=SUBTITLE_FONT_SIZE, color=WHITE, multialignment="center",
+                 **subtitle_text_kwargs)
 
-    fig.savefig(output_file, dpi=300, facecolor=fig.get_facecolor(), bbox_inches="tight")
+    fig.savefig(
+        output_file,
+        dpi=FIG_DPI,
+        facecolor=fig.get_facecolor(),
+        bbox_inches="tight",
+        pad_inches=SAVE_BBOX_PAD_INCHES,
+    )
     plt.close(fig)

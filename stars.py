@@ -8,7 +8,10 @@ _DATA_DIR = "./data"
 def load_stars(magnitude_limit=6.5):
     with open(f"{_DATA_DIR}/hipparcos.dat", "rb") as f:
         df = hipparcos.load_dataframe(f)
-    return df[df["magnitude"] <= magnitude_limit].copy()
+    # Drop rows missing required astrometric fields to avoid NaN propagation in Skyfield.
+    required = ["ra_degrees", "dec_degrees", "parallax_mas"]
+    mask = (df["magnitude"] <= magnitude_limit) & df[required].notna().all(axis=1)
+    return df[mask].copy()
 
 
 def compute_star_positions(df, lat, lon, year, month, day, hour, minute):

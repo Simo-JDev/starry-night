@@ -18,31 +18,40 @@ def main():
     parser.add_argument("--output", type=str, default="skymap.png")
     parser.add_argument("--title", type=str, default="")
     parser.add_argument("--subtitle", type=str, default="")
+    parser.add_argument("--ring-only", action="store_true",
+                        help="Render only the compass ring and labels (fast preview mode).")
     args = parser.parse_args()
 
     t = (args.lat, args.lon, args.year, args.month, args.day, args.hour, args.minute)
 
-    print("Loading stars...")
-    df = load_stars(magnitude_limit=args.mag)
+    stars_df = None
+    mw_projected = None
+    segments_projected = None
 
-    print("Computing star positions...")
-    stars_df = compute_star_positions(df, *t)
+    if not args.ring_only:
+        print("Loading stars...")
+        df = load_stars(magnitude_limit=args.mag)
 
-    print("Loading Milky Way...")
-    mw_polygons = load_milky_way()
+        print("Computing star positions...")
+        stars_df = compute_star_positions(df, *t)
 
-    print("Projecting Milky Way...")
-    mw_projected = project_milky_way(mw_polygons, *t)
+        print("Loading Milky Way...")
+        mw_polygons = load_milky_way()
 
-    print("Loading constellation lines...")
-    segments = load_constellation_lines()
+        print("Projecting Milky Way...")
+        mw_projected = project_milky_way(mw_polygons, *t)
 
-    print("Projecting constellations...")
-    segments_projected = project_constellations(segments, *t)
+        print("Loading constellation lines...")
+        segments = load_constellation_lines()
+
+        print("Projecting constellations...")
+        segments_projected = project_constellations(segments, *t)
+    else:
+        print("Ring-only preview mode: skipping sky calculations.")
 
     print(f"Rendering to {args.output}...")
     render_map(stars_df, mw_projected, segments_projected, output_file=args.output,
-               title=args.title, subtitle=args.subtitle)
+               title=args.title, subtitle=args.subtitle, ring_only=args.ring_only)
 
     print("Done.")
 
