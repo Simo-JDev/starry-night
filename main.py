@@ -1,8 +1,11 @@
 import argparse
+from skyfield.api import Loader, wgs84
 from stars import load_stars, compute_star_positions
 from milkyway import load_milky_way, project_milky_way
 from constellations import load_constellation_lines, project_constellations
 from render import render_map
+
+_DATA_DIR = "./data"
 
 
 def main():
@@ -29,23 +32,30 @@ def main():
     segments_projected = None
 
     if not args.ring_only:
+        load = Loader(_DATA_DIR)
+        planets = load("de421.bsp")
+        ts = load.timescale()
+        observer = wgs84.latlon(args.lat, args.lon)
+        t_skyfield = ts.utc(args.year, args.month, args.day, args.hour, args.minute)
+        earth = planets["earth"] + observer
+
         print("Loading stars...")
         df = load_stars(magnitude_limit=args.mag)
 
         print("Computing star positions...")
-        stars_df = compute_star_positions(df, *t)
+        stars_df = compute_star_positions(df, *t, earth=earth, t=t_skyfield)
 
         print("Loading Milky Way...")
         mw_polygons = load_milky_way()
 
         print("Projecting Milky Way...")
-        mw_projected = project_milky_way(mw_polygons, *t)
+        mw_projected = project_milky_way(mw_polygons, *t, earth=earth, t=t_skyfield)
 
         print("Loading constellation lines...")
         segments = load_constellation_lines()
 
         print("Projecting constellations...")
-        segments_projected = project_constellations(segments, *t)
+        segments_projected = project_constellations(segments, *t, earth=earth, t=t_skyfield)
     else:
         print("Ring-only preview mode: skipping sky calculations.")
 

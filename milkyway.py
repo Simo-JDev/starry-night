@@ -1,6 +1,6 @@
 import json
+import numpy as np
 from skyfield.api import Loader, Star, wgs84
-from skyfield.positionlib import position_of_radec
 
 _DATA_DIR = "./data"
 
@@ -19,21 +19,34 @@ def load_milky_way():
     return polygons
 
 
-def project_milky_way(polygons, lat, lon, year, month, day, hour, minute):
-    load = Loader(_DATA_DIR)
-    planets = load("de421.bsp")
-    ts = load.timescale()
+def project_milky_way(polygons, lat, lon, year, month, day, hour, minute, earth=None, t=None):
+    if earth is None or t is None:
+        load = Loader(_DATA_DIR)
+        planets = load("de421.bsp")
+        ts = load.timescale()
+        observer = wgs84.latlon(lat, lon)
+        t = ts.utc(year, month, day, hour, minute)
+        earth = planets["earth"] + observer
 
-    observer = wgs84.latlon(lat, lon)
-    t = ts.utc(year, month, day, hour, minute)
-    earth = planets["earth"] + observer
+    counts = [len(poly["vertices"]) for poly in polygons]
+    if not counts:
+        return []
+
+    all_vertices = [vertex for poly in polygons for vertex in poly["vertices"]]
+    ra_hours = np.array([ra for ra, _ in all_vertices], dtype=float) / 15.0
+    dec_degrees = np.array([dec for _, dec in all_vertices], dtype=float)
+
+    stars = Star(ra_hours=ra_hours, dec_degrees=dec_degrees)
+    alt, az, _ = earth.at(t).observe(stars).apparent().altaz()
+    alt_d = np.asarray(alt.degrees)
+    az_d = np.asarray(az.degrees)
 
     result = []
-    for polygon in polygons:
-        projected = []
-        for ra, dec in polygon["vertices"]:
-            star = Star(ra_hours=ra / 15.0, dec_degrees=dec)
-            alt, az, _ = earth.at(t).observe(star).apparent().altaz()
-            projected.append((alt.degrees, az.degrees))
-        result.append({"level": polygon["level"], "vertices": projected})
+    start = 0
+    for poly, count in zip(polygons, counts):
+        end = start + count
+        projected = list(zip(alt_d[start:end].tolist(), az_d[start:end].tolist()))
+        result.append({"level": poly["level"], "vertices": projected})
+        start = end
+
     return result

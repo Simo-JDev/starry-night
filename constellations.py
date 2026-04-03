@@ -9,27 +9,21 @@ def load_constellation_lines():
         geojson = json.load(f)
 
     segments = []
-    raw_entries = []
     for feature in geojson["features"]:
         for line in feature["geometry"]["coordinates"]:
             for i in range(len(line) - 1):
-                if len(raw_entries) < 3:
-                    raw_entries.append((line[i], line[i + 1]))
                 segments.append([(line[i][0], line[i][1]), (line[i + 1][0], line[i + 1][1])])
-    print("First 3 raw constellation line entries:")
-    for entry in raw_entries:
-        print(" ", entry)
     return segments
 
 
-def project_constellations(segments, lat, lon, year, month, day, hour, minute):
-    load = Loader(_DATA_DIR)
-    planets = load("de421.bsp")
-    ts = load.timescale()
-
-    observer = wgs84.latlon(lat, lon)
-    t = ts.utc(year, month, day, hour, minute)
-    earth = planets["earth"] + observer
+def project_constellations(segments, lat, lon, year, month, day, hour, minute, earth=None, t=None):
+    if earth is None or t is None:
+        load = Loader(_DATA_DIR)
+        planets = load("de421.bsp")
+        ts = load.timescale()
+        observer = wgs84.latlon(lat, lon)
+        t = ts.utc(year, month, day, hour, minute)
+        earth = planets["earth"] + observer
 
     # Collect all endpoints (2 per segment) into one vectorised call
     all_ra = [pt[0] / 15.0 for seg in segments for pt in seg]
@@ -46,5 +40,4 @@ def project_constellations(segments, lat, lon, year, month, day, hour, minute):
         a, b = i * 2, i * 2 + 1
         if alt_d[a] > 0 or alt_d[b] > 0:
             result.append([(alt_d[a], az_d[a]), (alt_d[b], az_d[b])])
-    print(f"Constellation segments: {total} total, {len(result)} kept (at least one endpoint above horizon)")
     return result

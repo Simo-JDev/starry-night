@@ -9,9 +9,10 @@ from pathlib import Path
 
 # --- Figure / layout constants ---
 FIG_SIZE = (10, 10)
-FIG_DPI = 300
-FIG_BG_COLOR = "#3d4460"
-MAP_BG_COLOR = "#3d4460"
+FIG_DPI = 600
+BASE_BG_COLOR = "#191f39"
+FIG_BG_COLOR = BASE_BG_COLOR
+MAP_BG_COLOR = BASE_BG_COLOR
 MAP_POS = [0.2187, 0.2187, 0.5626, 0.5626]
 RING_LIMIT = 1.5
 MAP_RADIUS = 1.0
@@ -26,7 +27,7 @@ RING_GUIDE_RADIUS = 1.21
 RING_GUIDE_LINEWIDTH = 0.6
 RING_TICK_RADIUS_MINOR = 1.05
 RING_TICK_RADIUS_MEDIUM = 1.05
-RING_TICK_RADIUS_MAJOR = 1.1
+RING_TICK_RADIUS_MAJOR = 1.08
 RING_TICK_LINEWIDTH_MINOR = 0.4
 RING_TICK_LINEWIDTH_MEDIUM = 0.6
 RING_TICK_LINEWIDTH_MAJOR = 0.9
@@ -53,11 +54,11 @@ HORIZON_ALTITUDE_DEG = 0
 MAP_CONTENT_MAX_RADIUS = 0.98
 MW_MIN_VISIBLE_RATIO = 0.30
 MW_FILL_COLOR = "#ffffff"
-CONSTELLATION_LINEWIDTH = 1.2
+CONSTELLATION_LINEWIDTH = 0.5
 CONSTELLATION_ALPHA = 0.9
-STAR_SIZE_MAG_REF = 6.5
-STAR_SIZE_SCALE = 1.5
-STAR_SIZE_MIN = 0.5
+STAR_SIZE_MAG_REF = 7.5
+STAR_SIZE_SCALE = 0.2
+STAR_SIZE_MIN = 0.01
 
 # --- Border / text ---
 FIG_BORDER_POS = (0.03, 0.03)
@@ -110,7 +111,7 @@ def draw_ring(ax_ring):
             (0, 0),
             0.985,
             fill=False,
-            edgecolor="#3d4460",
+            edgecolor=HORIZON_GAP_COLOR,
             linewidth=4,
             zorder=20,
         )
@@ -239,11 +240,9 @@ def render_map(
         above = stars_df[stars_df["altitude_deg"] > 0]
         thetas = np.radians(above["azimuth_deg"].values)
         rs = MAP_CONTENT_MAX_RADIUS * (1.0 - above["altitude_deg"].values / ALTITUDE_MAX_DEG)
-        sizes = np.clip(
-            (STAR_SIZE_MAG_REF - above["magnitude"].values) ** 2 * STAR_SIZE_SCALE,
-            STAR_SIZE_MIN,
-            None,
-        )
+        # Keep star size monotonic with magnitude: dimmer stars should not become larger.
+        brightness = np.clip(STAR_SIZE_MAG_REF - above["magnitude"].values, 0, None)
+        sizes = np.clip((brightness ** 2) * STAR_SIZE_SCALE, STAR_SIZE_MIN, None)
 
         ax.scatter(thetas, rs, s=sizes, color=WHITE, linewidths=0, zorder=3)
 
@@ -293,3 +292,4 @@ def render_map(
         pad_inches=SAVE_BBOX_PAD_INCHES,
     )
     plt.close(fig)
+HORIZON_GAP_COLOR = BASE_BG_COLOR

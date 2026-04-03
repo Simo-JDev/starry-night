@@ -14,15 +14,16 @@ def load_stars(magnitude_limit=6.5):
     return df[mask].copy()
 
 
-def compute_star_positions(df, lat, lon, year, month, day, hour, minute):
-    load = Loader(_DATA_DIR)
-    planets = load("de421.bsp")
-    ts = load.timescale()
+def compute_star_positions(df, lat, lon, year, month, day, hour, minute, earth=None, t=None):
+    if earth is None or t is None:
+        load = Loader(_DATA_DIR)
+        planets = load("de421.bsp")
+        ts = load.timescale()
+        observer = wgs84.latlon(lat, lon)
+        t = ts.utc(year, month, day, hour, minute)
+        earth = planets["earth"] + observer
 
-    observer = wgs84.latlon(lat, lon)
-    t = ts.utc(year, month, day, hour, minute)
-
-    astrometric = (planets["earth"] + observer).at(t).observe(Star.from_dataframe(df))
+    astrometric = earth.at(t).observe(Star.from_dataframe(df))
     alt, az, _ = astrometric.apparent().altaz()
 
     result = pd.DataFrame(
