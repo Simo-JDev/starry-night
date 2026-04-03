@@ -6,13 +6,12 @@ import matplotlib.patches as mpatches
 import matplotlib.path as mpath
 from matplotlib.font_manager import FontProperties
 from pathlib import Path
+from io import BytesIO
 
 # --- Figure / layout constants ---
 FIG_SIZE = (10, 10)
 FIG_DPI = 600
 BASE_BG_COLOR = "#191f39"
-FIG_BG_COLOR = BASE_BG_COLOR
-MAP_BG_COLOR = BASE_BG_COLOR
 MAP_POS = [0.2187, 0.2187, 0.5626, 0.5626]
 RING_LIMIT = 1.5
 MAP_RADIUS = 1.0
@@ -42,7 +41,6 @@ CARDINAL_LABEL_RADIUS = 1.21
 CARDINAL_FONT_SIZE = 10
 INTERCARDINAL_FONT_SIZE = 10
 CARDINAL_LABEL_BBOX_PAD = 0.25
-CARDINAL_LABEL_BBOX_COLOR = FIG_BG_COLOR
 CARDINAL_LETTER_SPACING = "\u200A"  # hair space for subtle tracking
 CARDINALS = {0: "North", 90: "East", 180: "South", 270: "West"}
 INTERCARDINALS = {45: "NE", 135: "SE", 225: "SW", 315: "NW"}
@@ -87,7 +85,7 @@ def _to_polar(alt_deg, az_deg):
 MW_ALPHA = {1: 0.08, 2: 0.12, 3: 0.16, 4: 0.22, 5: 0.30}
 
 
-def draw_ring(ax_ring):
+def draw_ring(ax_ring, background_color):
     def _ring_rad(az_deg):
         # Counterclockwise from North: N at top, E at left.
         return np.radians(-az_deg)
@@ -113,7 +111,7 @@ def draw_ring(ax_ring):
             (0, 0),
             0.985,
             fill=False,
-            edgecolor=HORIZON_GAP_COLOR,
+            edgecolor=background_color,
             linewidth=4,
             zorder=20,
         )
@@ -183,23 +181,24 @@ def draw_ring(ax_ring):
                      ha="center", va="center", rotation=rotation, zorder=7,
                      bbox=dict(
                          boxstyle=f"round,pad={CARDINAL_LABEL_BBOX_PAD}",
-                         facecolor=CARDINAL_LABEL_BBOX_COLOR,
+                         facecolor=background_color,
                          edgecolor="none",
                      ))
 
 
-def render_map(
+def _build_figure(
     stars_df,
     milky_way,
     constellation_segments,
-    output_file="skymap.png",
     title="",
     subtitle="",
     ring_only=False,
     show_names=False,
     constellation_labels=None,
+    background_color=BASE_BG_COLOR,
+    figure_dpi=FIG_DPI,
 ):
-    fig = plt.figure(figsize=FIG_SIZE, dpi=FIG_DPI, facecolor=FIG_BG_COLOR)
+    fig = plt.figure(figsize=FIG_SIZE, dpi=figure_dpi, facecolor=background_color)
     ring_limit = RING_LIMIT
     map_radius = MAP_RADIUS
     ring_scale = ring_limit / map_radius
@@ -212,7 +211,7 @@ def render_map(
     ring_pos = [cx - ring_size / 2, cy - ring_size / 2, ring_size, ring_size]
 
     if not ring_only:
-        ax = fig.add_axes(map_pos, projection="polar", facecolor=MAP_BG_COLOR)
+        ax = fig.add_axes(map_pos, projection="polar", facecolor=background_color)
 
         ax.set_theta_zero_location("N")
         ax.set_theta_direction(1)
@@ -274,7 +273,7 @@ def render_map(
     ax_ring.set_aspect("equal")
     ax_ring.axis("off")
     ax_ring.patch.set_visible(False)
-    draw_ring(ax_ring)
+    draw_ring(ax_ring, background_color=background_color)
 
     # --- Figure border ---
     fig.patches.append(mpatches.Rectangle(
@@ -304,12 +303,76 @@ def render_map(
                  fontsize=SUBTITLE_FONT_SIZE, color=WHITE, multialignment="center",
                  **subtitle_text_kwargs)
 
+    return fig
+
+
+def render_map(
+    stars_df,
+    milky_way,
+    constellation_segments,
+    output_file="skymap.png",
+    title="",
+    subtitle="",
+    ring_only=False,
+    show_names=False,
+    constellation_labels=None,
+    background_color=BASE_BG_COLOR,
+    figure_dpi=FIG_DPI,
+):
+    fig = _build_figure(
+        stars_df,
+        milky_way,
+        constellation_segments,
+        title=title,
+        subtitle=subtitle,
+        ring_only=ring_only,
+        show_names=show_names,
+        constellation_labels=constellation_labels,
+        background_color=background_color,
+        figure_dpi=figure_dpi,
+    )
     fig.savefig(
         output_file,
-        dpi=FIG_DPI,
+        dpi=figure_dpi,
         facecolor=fig.get_facecolor(),
         bbox_inches="tight",
         pad_inches=SAVE_BBOX_PAD_INCHES,
     )
     plt.close(fig)
-HORIZON_GAP_COLOR = BASE_BG_COLOR
+
+
+def render_map_bytes(
+    stars_df,
+    milky_way,
+    constellation_segments,
+    title="",
+    subtitle="",
+    ring_only=False,
+    show_names=False,
+    constellation_labels=None,
+    background_color=BASE_BG_COLOR,
+    figure_dpi=FIG_DPI,
+):
+    fig = _build_figure(
+        stars_df,
+        milky_way,
+        constellation_segments,
+        title=title,
+        subtitle=subtitle,
+        ring_only=ring_only,
+        show_names=show_names,
+        constellation_labels=constellation_labels,
+        background_color=background_color,
+        figure_dpi=figure_dpi,
+    )
+    buffer = BytesIO()
+    fig.savefig(
+        buffer,
+        format="png",
+        dpi=figure_dpi,
+        facecolor=fig.get_facecolor(),
+        bbox_inches="tight",
+        pad_inches=SAVE_BBOX_PAD_INCHES,
+    )
+    plt.close(fig)
+    return buffer.getvalue()
