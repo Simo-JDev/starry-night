@@ -3,7 +3,7 @@ from datetime import datetime
 import requests
 import streamlit as st
 
-from render import BASE_BG_COLOR, FIG_DPI, render_map, render_map_bytes
+from render import BASE_BG_COLOR, FIG_DPI, render_map_bytes
 from skymap import build_skymap_data
 
 PREVIEW_DPI = 120
@@ -60,6 +60,38 @@ def get_preview_image(
 
 
 @st.cache_data(show_spinner=False)
+def get_full_resolution_image(
+    lat,
+    lon,
+    year,
+    month,
+    day,
+    hour,
+    minute,
+    mag,
+    show_names,
+    title,
+    subtitle,
+    background_color,
+):
+    stars_df, milky_way, constellation_segments, constellation_labels = get_skymap_data(
+        lat, lon, year, month, day, hour, minute, mag, False, show_names
+    )
+    return render_map_bytes(
+        stars_df,
+        milky_way,
+        constellation_segments,
+        title=title,
+        subtitle=subtitle,
+        ring_only=False,
+        show_names=show_names,
+        constellation_labels=constellation_labels,
+        background_color=background_color,
+        figure_dpi=FIG_DPI,
+    )
+
+
+@st.cache_data(show_spinner=False)
 def geocode_location_options(query):
     response = requests.get(
         GEOCODER_URL,
@@ -82,8 +114,8 @@ def geocode_location_options(query):
 
 
 st.set_page_config(page_title="Starry Night", layout="wide")
-st.title("Starry Night Generator")
-st.caption("Adjust the inputs to refresh the low-resolution preview. Use Generate to save the full-resolution PNG.")
+st.title("⭐️ Starry Night Generator")
+st.caption("Adjust the inputs to refresh the low-resolution preview. Use the download button to generate the full-resolution PNG.")
 
 controls, preview = st.columns([1, 1.3], gap="large")
 valid_datetime = True
@@ -129,7 +161,7 @@ with controls:
     st.caption("Time inputs are interpreted in UTC.")
 
     mag = st.number_input("Magnitude Limit", min_value=-5.0, max_value=20.0, value=6.5, step=0.1, format="%.1f")
-    output = st.text_input("Output File", value="skymap.png")
+    output = st.text_input("Download Filename", value="skymap.png")
     title = st.text_input("Title", value="")
     subtitle = st.text_area("Subtitle", value="", height=100)
     show_names = st.checkbox("Show Constellation Names", value=False)
@@ -168,31 +200,25 @@ elif location_error and valid_datetime:
         st.subheader("Preview")
         st.info("Enter a valid location to see the preview.")
 
-if st.button("Generate", type="primary", disabled=not valid_inputs):
-    with st.spinner("Rendering full-resolution PNG..."):
-        stars_df, milky_way, constellation_segments, constellation_labels = get_skymap_data(
-            float(location_result["lat"]),
-            float(location_result["lon"]),
-            int(year),
-            int(month),
-            int(day),
-            int(hour),
-            int(minute),
-            float(mag),
-            False,
-            bool(show_names),
-        )
-        render_map(
-            stars_df,
-            milky_way,
-            constellation_segments,
-            output_file=output,
-            title=title,
-            subtitle=subtitle,
-            ring_only=False,
-            show_names=bool(show_names),
-            constellation_labels=constellation_labels,
-            background_color=background_color,
-            figure_dpi=FIG_DPI,
-        )
-    st.success(f"Saved full-resolution image to {output}")
+if valid_inputs:
+    full_res_bytes = get_full_resolution_image(
+        float(location_result["lat"]),
+        float(location_result["lon"]),
+        int(year),
+        int(month),
+        int(day),
+        int(hour),
+        int(minute),
+        float(mag),
+        bool(show_names),
+        title=title,
+        subtitle=subtitle,
+        background_color=background_color,
+    )
+    st.download_button(
+        "Generate and Download PNG",
+        data=full_res_bytes,
+        file_name=output.strip() or "skymap.png",
+        mime="image/png",
+        type="primary",
+    )
